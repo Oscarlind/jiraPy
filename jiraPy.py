@@ -164,6 +164,8 @@ def main():
             create_issue(args.add[0], args.add[1])
         elif len(args.add) == 3:
             create_issue(args.add[0], args.add[1], args.add[2])
+        elif len(args.add) == 4:
+            create_issue(args.add[0], args.add[1], args.add[2], args.add[3])
         else:
             print("Contains too many arguments got: \n",', '.join(args.add))
 
