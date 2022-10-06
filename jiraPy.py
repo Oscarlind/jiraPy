@@ -143,8 +143,6 @@ def main():
         get_issues(base_project)
     if args.support:
         get_issues(support_project)
-    if args.status:
-        get_status()
     if args.comment:
         if len(args.comment) == 2:
             add_comment(args.comment[0], args.comment[1])
