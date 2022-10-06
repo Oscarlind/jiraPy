@@ -45,7 +45,6 @@ parser.add_argument('-m', '--move',
                     help='Move selected issue')
 parser.add_argument('-a', '--add', 
                     nargs='*',
-#                    metavar=('[Issue]', '[Summary]', '[Description]'),
                     help='Create a new issue')
 
 args=parser.parse_args()
@@ -73,8 +72,10 @@ def connect_jira(server, token):
         print("Could not connect to the server")
         return None
 
+# Set the jira globally
+jira = connect_jira(server, token)
+
 def get_issues(project_name):
-    jira = connect_jira(server, token)
     issue_table = PrettyTable(['Issue', 'Type', 'Status', 'Description', 'Creation Date'])
     issues = jira.search_issues('assignee = currentUser() AND project = %s' %(project_name))
     for issue in issues:
@@ -90,7 +91,6 @@ def get_issues(project_name):
         print(f"Nothing assigned in project {project_name}")
 
 def add_comment(j_issue, comment=""):
-    jira = connect_jira(server, token)
     if not comment:
         comment_count = 1
         try:
@@ -113,31 +113,29 @@ def add_comment(j_issue, comment=""):
             print(f"{FAIL}ERROR:{ENDC} Could not add comment to {j_issue}")
 
 def transition_issue(issue, w_flow):
-    jira = connect_jira(server, token)
     print("Moving issue: %s to: %s" % (issue, args.move[1]))
     try:
         jira.transition_issue(issue, w_flow)
     except JIRAError:
         print(f"Issue: {args.move[0]} does not exist, try again")
 
-# Add argument to add assignee
 # Note that custom fields are specific for the environment etc. Inspect the code on your browser to see
 # What values are relevant.
-def create_issue(summary, issue_type="Feil", description="Adding later"):
-    jira = connect_jira(server, token)
+def create_issue(summary, issue_type="Feil", description="Adding later", assignee=jira.current_user()):
     issue_dict = {
     'project': {'key': base_project},
     'summary': summary,
     'description': description,
     'issuetype': {'name': issue_type},
-    'assignee': {'name': jira.current_user()},
+    'assignee': {'name': assignee},
     'customfield_17400': {'value': 'OpenShift'}
 }
     try:
         jira.create_issue(fields=issue_dict)
-        print(f"Issue created with the following:\n\n Issue type: {issue_type}\n Summary: {summary}\n Description: {description}")
+        print("=" *34) # Character length of the first line in the following row.
+        print(f"Issue created with the following:\n\n Issue type: {issue_type}\n Summary: {summary}\n Description: {description}\n Assignee: {assignee}")
     except JIRAError as e:
-        print(f"Could not create issue {args.add[0]} {e}")
+        print(f"{FAIL}Error{ENDC} Could not create issue {args.add[0]} {e}")
     
 
 def main():
@@ -145,6 +143,8 @@ def main():
         get_issues(base_project)
     if args.support:
         get_issues(support_project)
+    if args.status:
+        get_status()
     if args.comment:
         if len(args.comment) == 2:
             add_comment(args.comment[0], args.comment[1])
