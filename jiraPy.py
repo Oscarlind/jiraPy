@@ -119,8 +119,8 @@ def transition_issue(issue, w_flow):
     except JIRAError:
         print(f"Issue: {args.move[0]} does not exist, try again")
 
-# Note that custom fields are specific for the environment etc. Inspect the code on your browser to see
-# What values are relevant.
+# Note that custom fields are specific for the environment etc. If you are using it,
+# inspect the code on your browser to see which fields and values might be relevant.
 def create_issue(summary, issue_type="Feil", description="Adding later", assignee=jira.current_user()):
     issue_dict = {
     'project': {'key': base_project},
@@ -128,7 +128,6 @@ def create_issue(summary, issue_type="Feil", description="Adding later", assigne
     'description': description,
     'issuetype': {'name': issue_type},
     'assignee': {'name': assignee},
-    'customfield_17400': {'value': 'OpenShift'}
 }
     try:
         jira.create_issue(fields=issue_dict)
