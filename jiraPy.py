@@ -2,8 +2,8 @@ from jira.client import JIRA, JIRAError
 import argparse
 import configparser
 from prettytable import PrettyTable
-import sys
 import textwrap
+from datetime import datetime, timedelta
 
 # Loading configuration
 config = configparser.ConfigParser()
@@ -18,9 +18,13 @@ Closed = config.get("aliases", "Closed")
 # Text formatting
 BOLD = '\033[1m'
 OKGREEN = '\033[92m'
+OKBLUE = '\033[94m'
 OKCYAN = '\033[96m'
-ENDC = '\033[0m'
+YELLOW = '\033[33m'
+WHITE  = "\033[97m"
 FAIL = '\033[91m'
+CBLACKBG = '\33[40m'
+ENDC = '\033[0m'
 
 # Creating parser
 parser = argparse.ArgumentParser(prog='jiraPy',
@@ -36,6 +40,9 @@ parser.add_argument('-l', '--list',
 parser.add_argument('-s', '--support', 
                     action='store_true',
                     help='List assigned support issues')
+parser.add_argument('--status', 
+                    action='store_true',
+                    help='Print status for %s' % base_project)
 parser.add_argument('-c', '--comment', 
                     nargs='*',
                     help='Comment selected issue')
@@ -60,6 +67,7 @@ wflow_dict = {'Backlog': 11,
              }
 
 # Defines a function for connecting to Jira
+# Should try a "try/catch" for secure/insecure connections
 def connect_jira(server, token):
     '''
     Connect to JIRA. Return None on error
@@ -69,7 +77,7 @@ def connect_jira(server, token):
         jira = JIRA(options=jira_options, token_auth=(token))
         return jira
     except Exception as e:
-        print("Could not connect to the server")
+        print("Could not connect to the server", e)
         return None
 
 # Set the jira globally
@@ -84,11 +92,31 @@ def get_issues(project_name):
         elif Closed in str(issue.fields.status):
             pass
         else:
-            issue_table.add_row([issue, issue.fields.issuetype, issue.fields.status, issue.fields.summary, issue.fields.created[:10]])
+            issue_table.add_row([OKCYAN + str(issue) +ENDC, OKGREEN + str(issue.fields.issuetype) +ENDC, OKBLUE + str(issue.fields.status) +ENDC, YELLOW + str(issue.fields.summary) +ENDC, WHITE+issue.fields.created[:10]+ENDC])
     if issue_table.rows:
         print(issue_table)
     else:
-        print(f"Nothing assigned in project {project_name}")
+        print(f"{OKGREEN}OK{ENDC}\nNothing assigned in project {project_name}")
+
+def get_status():
+    cutoff_date = datetime.now() - timedelta(days=14)
+    cut_off = cutoff_date.strftime('%Y-%m-%d')
+    c_date = datetime.strptime(cut_off, '%Y-%m-%d')
+    status_table = PrettyTable(['Issue', 'Status', 'Description', 'Creation Date', 'Assignee'])
+    issues = jira.search_issues('project = %s AND cf[17400] = OpenShift' %(base_project))
+    for issue in issues:
+        if datetime.strptime(issue.fields.created[:10], "%Y-%m-%d") >= c_date:
+            if issue.fields.subtasks:
+                if Done in str(issue.fields.status):
+                    status_table.add_row([BOLD +CBLACKBG+str(issue), str(issue.fields.status), str(issue.fields.summary), issue.fields.created[:10], str(issue.fields.assignee) +ENDC])
+                else:
+                    status_table.add_row([BOLD +OKGREEN+str(issue)+ENDC, BOLD +OKBLUE + str(issue.fields.status)+ENDC, BOLD +YELLOW +str(issue.fields.summary) +ENDC, BOLD +WHITE+issue.fields.created[:10]+ENDC, BOLD +FAIL+str(issue.fields.assignee) +ENDC])
+            else:
+                if Done in str(issue.fields.status):
+                    status_table.add_row([BOLD +CBLACKBG+str(issue), str(issue.fields.status), str(issue.fields.summary), issue.fields.created[:10], str(issue.fields.assignee) +ENDC])
+                else:
+                    status_table.add_row([OKCYAN+str(issue)+ENDC, OKBLUE + str(issue.fields.status)+ENDC, YELLOW +str(issue.fields.summary) +ENDC, WHITE+issue.fields.created[:10]+ENDC, FAIL+str(issue.fields.assignee) +ENDC])
+    print(status_table)
 
 def add_comment(j_issue, comment=""):
     if not comment:
@@ -96,10 +124,16 @@ def add_comment(j_issue, comment=""):
         try:
             issue = jira.issue(j_issue)
             comments = issue.fields.comment.comments
+            #if issue.fields.subtasks:
             if issue.fields.description is not None:
-                print(f"{OKGREEN}Description:{ENDC}\n\n",textwrap.fill(issue.fields.description, 79))
+                print(f"{OKGREEN}Description:{ENDC}\n\n",textwrap.fill(issue.fields.description, 79), sep='')
+            if issue.fields.subtasks:
+                print(f"\n{OKBLUE}Related subtasks:{ENDC}\n")
+                for task in issue.fields.subtasks:
+                    print(task.key)
+                print("")
             for comment in comments:
-                print("=" *79)
+                print("\n","=" *79)
                 print(f"{comment_count}. {OKCYAN}Comment:{ENDC}")
                 print(f"{textwrap.fill(comment.body, 79)}\n\n Author: {comment.author.displayName}\n Date: {comment.created[:10]}\n")
                 comment_count = comment_count + 1
@@ -113,14 +147,14 @@ def add_comment(j_issue, comment=""):
             print(f"{FAIL}ERROR:{ENDC} Could not add comment to {j_issue}")
 
 def transition_issue(issue, w_flow):
-    print("Moving issue: %s to: %s" % (issue, args.move[1]))
     try:
         jira.transition_issue(issue, w_flow)
+        print(f"{OKCYAN}Moving issue:{ENDC} %s to: %s" % (issue, args.move[1]))
     except JIRAError:
-        print(f"Issue: {args.move[0]} does not exist, try again")
+        print(f"{FAIL}ERROR{ENDC} The Issue: {args.move[0]} does not exist, try again")
 
-# Note that custom fields are specific for the environment etc. If you are using it,
-# inspect the code on your browser to see which fields and values might be relevant.
+# Note that custom fields are specific for the environment etc. Inspect the code on your browser to see
+# What values are relevant.
 def create_issue(summary, issue_type="Feil", description="Adding later", assignee=jira.current_user()):
     issue_dict = {
     'project': {'key': base_project},
@@ -128,11 +162,12 @@ def create_issue(summary, issue_type="Feil", description="Adding later", assigne
     'description': description,
     'issuetype': {'name': issue_type},
     'assignee': {'name': assignee},
+#    'customfield_17400': {'value': 'OpenShift'}
 }
     try:
         jira.create_issue(fields=issue_dict)
         print("=" *34) # Character length of the first line in the following row.
-        print(f"Issue created with the following:\n\n Issue type: {issue_type}\n Summary: {summary}\n Description: {description}\n Assignee: {assignee}")
+        print(f"{OKGREEN}Issue{ENDC} successfully created with the following:\n\n {OKCYAN}Issue type:{ENDC} {issue_type}\n {OKCYAN}Summary:{ENDC} {summary}\n {OKCYAN}Description:{ENDC} {description}\n {OKCYAN}Assignee:{ENDC} {assignee}")
     except JIRAError as e:
         print(f"{FAIL}Error{ENDC} Could not create issue {args.add[0]} {e}")
     
@@ -142,6 +177,8 @@ def main():
         get_issues(base_project)
     if args.support:
         get_issues(support_project)
+    if args.status:
+        get_status()
     if args.comment:
         if len(args.comment) == 2:
             add_comment(args.comment[0], args.comment[1])
