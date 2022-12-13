@@ -105,15 +105,16 @@ def get_status():
     status_table = PrettyTable(['Issue', 'Status', 'Description', 'Creation Date', 'Assignee'])
     issues = jira.search_issues('project = %s AND cf[17400] = OpenShift' %(base_project))
     for issue in issues:
-        if datetime.strptime(issue.fields.created[:10], "%Y-%m-%d") >= c_date:
             if issue.fields.subtasks:
                 if Done in str(issue.fields.status):
-                    status_table.add_row([BOLD +CBLACKBG+str(issue), str(issue.fields.status), str(issue.fields.summary), issue.fields.created[:10], str(issue.fields.assignee) +ENDC])
+                    if datetime.strptime(issue.fields.created[:10], "%Y-%m-%d") >= c_date:
+                        status_table.add_row([BOLD +CBLACKBG+str(issue), str(issue.fields.status), str(issue.fields.summary), issue.fields.created[:10], str(issue.fields.assignee) +ENDC])
                 else:
                     status_table.add_row([BOLD +OKGREEN+str(issue)+ENDC, BOLD +OKBLUE + str(issue.fields.status)+ENDC, BOLD +YELLOW +str(issue.fields.summary) +ENDC, BOLD +WHITE+issue.fields.created[:10]+ENDC, BOLD +FAIL+str(issue.fields.assignee) +ENDC])
             else:
                 if Done in str(issue.fields.status):
-                    status_table.add_row([BOLD +CBLACKBG+str(issue), str(issue.fields.status), str(issue.fields.summary), issue.fields.created[:10], str(issue.fields.assignee) +ENDC])
+                    if datetime.strptime(issue.fields.created[:10], "%Y-%m-%d") >= c_date:
+                        status_table.add_row([BOLD +CBLACKBG+str(issue), str(issue.fields.status), str(issue.fields.summary), issue.fields.created[:10], str(issue.fields.assignee) +ENDC])
                 else:
                     status_table.add_row([OKCYAN+str(issue)+ENDC, OKBLUE + str(issue.fields.status)+ENDC, YELLOW +str(issue.fields.summary) +ENDC, WHITE+issue.fields.created[:10]+ENDC, FAIL+str(issue.fields.assignee) +ENDC])
     print(status_table)
